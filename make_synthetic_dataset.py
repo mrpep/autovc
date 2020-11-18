@@ -159,6 +159,9 @@ def generate_synthetic_dataset(source_folder, targets_folder, output_path, mode=
   target_subjects = glob.glob(targets_folder + '/*')
   targets = {Path(t).stem: list(glob.glob(t+'/*.wav')) for t in target_subjects}
 
+  if not Path(output_path).exists():
+      Path(output_path).mkdir(parents=True)
+
   for source in tqdm.tqdm(sources):
     source_name = Path(source).stem
     for k,v in tqdm.tqdm(targets.items()):
