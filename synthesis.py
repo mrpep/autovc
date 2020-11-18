@@ -11,8 +11,8 @@ import librosa
 from hparams import hparams
 from wavenet_vocoder import builder
 
-torch.set_num_threads(4)
-use_cuda = torch.cuda.is_available()
+torch.set_num_threads(1)
+use_cuda = False
 device = torch.device("cuda" if use_cuda else "cpu")
 
 

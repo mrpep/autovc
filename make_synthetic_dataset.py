@@ -16,6 +16,8 @@ import librosa
 from synthesis import build_model
 from synthesis import wavegen
 
+import os
+
 def butter_highpass(cutoff, fs, order=5):
     nyq = 0.5 * fs
     normal_cutoff = cutoff / nyq
@@ -61,8 +63,8 @@ def generate_melspectrogram(wav_file):
   return S
 
 def load_sencoder():
-  C = D_VECTOR(dim_input=80, dim_cell=768, dim_emb=256).eval().cuda()
-  c_checkpoint = torch.load('3000000-BL.ckpt')
+  C = D_VECTOR(dim_input=80, dim_cell=768, dim_emb=256).eval().cpu()
+  c_checkpoint = torch.load('3000000-BL.ckpt',map_location='cpu')
   new_state_dict = OrderedDict()
   for key, val in c_checkpoint['model_b'].items():
       new_key = key[7:]
@@ -72,10 +74,10 @@ def load_sencoder():
   return C
 
 def load_autovc():
-  device = 'cuda:0'
+  device = 'cpu'
   G = Generator(32,256,512,32).eval().to(device)
 
-  g_checkpoint = torch.load('autovc.ckpt',map_location='cuda:0')
+  g_checkpoint = torch.load('autovc.ckpt',map_location='cpu')
   G.load_state_dict(g_checkpoint['model'])
 
   return G
@@ -88,13 +90,13 @@ def generate_speaker_embedding(mel_spectrograms,s_encoder):
 
   batches = [m[i:i+len_crop] for m in mel_spectrograms for i in range(0,len(m) - len_crop,hop_frames)]
 
-  melsp = torch.from_numpy(np.array(batches,dtype=np.float32)).cuda()
+  melsp = torch.from_numpy(np.array(batches,dtype=np.float32)).cpu()
   emb = s_encoder(melsp)
   
   return emb.detach().squeeze().cpu().numpy()
 
 def convert(source_mel, source_speaker_emb, target_speaker_emb, autovc_model):
-  device = 'cuda:0'
+  device = 'cpu'
 
   source_mel, len_pad = pad_seq(source_mel)
   source_mel = torch.from_numpy(source_mel[np.newaxis, :, :]).to(device)
@@ -112,9 +114,9 @@ def convert(source_mel, source_speaker_emb, target_speaker_emb, autovc_model):
   return uttr_trg
 
 def load_vocoder():
-  device = torch.device("cuda")
+  device = torch.device("cpu")
   model = build_model().to(device)
-  checkpoint = torch.load("checkpoint_step001000000_ema.pth")
+  checkpoint = torch.load("checkpoint_step001000000_ema.pth",map_location='cpu')
   model.load_state_dict(checkpoint["state_dict"])
 
   return model
@@ -168,3 +170,17 @@ def generate_synthetic_dataset(source_folder, targets_folder, output_path, mode=
       S_source, S_result, waveform = voice_convert(source,v,C,G,V,mode)
       sf.write(str(Path(output_path,'{}-{}.wav'.format(source_name,k))),waveform.T,22050)
       joblib.dump(S_result,str(Path(output_path,'{}-{}.mel'.format(source_name,k))))
+
+def main():
+    import argparse
+
+    argparser = argparse.ArgumentParser(description='Synthetic generator')
+    argparser.add_argument('--source_folder', type=str)
+    argparser.add_argument('--targets_folder', type=str)
+    argparser.add_argument('--output_path', type=str)
+
+    args = vars(argparser.parse_args())
+    generate_synthetic_dataset(**args)
+
+if __name__ == '__main__':
+    main()
